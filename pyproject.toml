@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "research-agent-mvp"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "alembic>=1.14,<2",
+    "langchain>=1,<2",
+    "langgraph>=1,<2",
+    "langgraph-checkpoint-sqlite>=3,<4",
+    "networkx>=3,<4",
+    "pydantic>=2.10,<3",
+    "pyvis>=0.3,<1",
+    "sqlalchemy>=2,<3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+
+[project.scripts]
+research-agent = "research_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

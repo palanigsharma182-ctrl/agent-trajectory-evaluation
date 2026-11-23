@@ -1,0 +1,165 @@
+{
+  "source": {
+    "dataset": "allenai/qasper",
+    "config": "qasper",
+    "split": "train",
+    "row_index": 536,
+    "content_sha256": "592ebd9088ddcd31094cbc524549a29df1ce42baf0a9ec8ff810a74b54209602"
+  },
+  "paper": {
+    "id": "1901.11117",
+    "title": "The Evolved Transformer",
+    "source_url": "https://arxiv.org/abs/1901.11117",
+    "source_split": "QASPER train, local source row 536"
+  },
+  "task": {
+    "id": "et_results_and_attribution",
+    "question": "On WMT 2014 English-German, what two reported performance or efficiency advantages does the Evolved Transformer have over the Transformer, and can the advantage be attributed to the 3-to-4 decoder-block mutation alone? State the relevant comparison scope.",
+    "result_requirement": "Report two numeric results from the paper, with their baselines and units, and identify the WMT En-De/model-size comparison to which they apply.",
+    "attribution_requirement": "Use the paper's add-one/remove-one ablation controls to assess whether any single mutation, including the extra decoder block, explains the observed gap."
+  },
+  "propositions": [
+    {
+      "id": "r_mobile_bleu",
+      "kind": "RESULT",
+      "statement": "At roughly 7 million parameters, ET exceeds Transformer by 0.7 BLEU on WMT En-De.",
+      "paragraph_id": "s11p1",
+      "span": [
+        0,
+        176
+      ],
+      "quote_sha256": "00838f3babd5c2af2a93dcd93c97dfe6f12f092617ae3e4c1582532e9efa9cf7"
+    },
+    {
+      "id": "r_big_flops",
+      "kind": "RESULT",
+      "statement": "An ET model exceeds Transformer big performance with 44.8% less FLOPS.",
+      "paragraph_id": "s11p1",
+      "span": [
+        277,
+        369
+      ],
+      "quote_sha256": "5deea612e5d50797643712f4fbe126722d08bb3f37375e84985ec99eace93126"
+    },
+    {
+      "id": "s_wmt_comparison",
+      "kind": "SETTING",
+      "statement": "The comparison uses the Tensor2Tensor WMT 2014 English-German regime and eight NVIDIA P100s.",
+      "paragraph_id": "s11p0",
+      "span": [
+        80,
+        259
+      ],
+      "quote_sha256": "1f4aca176902fa5e3dfcc16607d14ba7a80eb824f2986b3a3890011c951ec5f2"
+    },
+    {
+      "id": "s_size_scope",
+      "kind": "SETTING",
+      "statement": "The BLEU advantage narrows as model size grows.",
+      "paragraph_id": "s11p3",
+      "span": [
+        133,
+        279
+      ],
+      "quote_sha256": "cff176dfd70f12bb970404b8b41e0758701d2fe9b6a92ae03e947ceb84d18e4c"
+    },
+    {
+      "id": "m_two_way_ablation",
+      "kind": "METHOD",
+      "statement": "Each mutation is added to Transformer and removed from ET in separate ablations.",
+      "paragraph_id": "s11p4",
+      "span": [
+        115,
+        412
+      ],
+      "quote_sha256": "e88989b9c39ae1ef60b81aae39aead09d80f59e20ac10e4c93e9197354a2e3c9"
+    },
+    {
+      "id": "s_ablation_control",
+      "kind": "SETTING",
+      "statement": "Each ablation configuration was trained three times for 300k steps on WMT En-De with identical hyperparameters.",
+      "paragraph_id": "s11p4",
+      "span": [
+        413,
+        517
+      ],
+      "quote_sha256": "6e0d6c732e11d0e0c3b8bffb22f9bb42ca3b63e99c54afc57b8636773e8e18fd"
+    },
+    {
+      "id": "a_no_single_mutation",
+      "kind": "INTERPRETATION",
+      "statement": "No one mutation accounts for the ET–Transformer performance gap.",
+      "paragraph_id": "s11p5",
+      "span": [
+        105,
+        202
+      ],
+      "quote_sha256": "9653e83072a024cfbc759a746661070ceaf14669c7a21799e4c64f06cc1d9f80"
+    },
+    {
+      "id": "a_decoder_block_limit",
+      "kind": "INTERPRETATION",
+      "statement": "The 3-to-4 decoder-block change seems strongest individually, but alone does not account for ET's higher fitness.",
+      "paragraph_id": "s11p5",
+      "span": [
+        204,
+        492
+      ],
+      "quote_sha256": "73aa070fa48055a1866407c62f3cb32ae079a7f951c373336f69795ae8c0a0dc"
+    }
+  ],
+  "relations": [
+    {
+      "source_id": "a_no_single_mutation",
+      "target_id": "m_two_way_ablation",
+      "kind": "REQUIRES"
+    },
+    {
+      "source_id": "a_decoder_block_limit",
+      "target_id": "m_two_way_ablation",
+      "kind": "REQUIRES"
+    },
+    {
+      "source_id": "r_mobile_bleu",
+      "target_id": "s_wmt_comparison",
+      "kind": "REQUIRES"
+    },
+    {
+      "source_id": "r_big_flops",
+      "target_id": "s_wmt_comparison",
+      "kind": "REQUIRES"
+    }
+  ],
+  "experiment": {
+    "id": "wmt_en_de_et_vs_transformer",
+    "setting_ids": [
+      "s_wmt_comparison",
+      "s_size_scope",
+      "s_ablation_control"
+    ],
+    "result_ids": [
+      "r_mobile_bleu",
+      "r_big_flops"
+    ]
+  },
+  "demo": {
+    "result_paragraph_id": "s11p1",
+    "ablation_paragraph_id": "s11p5",
+    "result_query": "Evolved Transformer 7M parameters 0.7 BLEU big 44.8% FLOPS WMT En-De",
+    "ablation_query": "Evolved Transformer ablation single mutation 3 to 4 decoder blocks attribution",
+    "result_answer": "On WMT En-De, ET leads by 0.7 BLEU at roughly 7M parameters. An ET model also exceeds Transformer big performance with 44.8% fewer FLOPS. The BLEU gap narrows at larger model sizes.",
+    "attribution_answer": "The two-way ablation adds each mutation to Transformer and removes it from ET. The authors report that no single mutation accounts for the ET–Transformer gap. Increasing decoder blocks from three to four appears strongest individually, yet augmented ET remains fitter after that swap.",
+    "result_proposition_ids": [
+      "r_mobile_bleu",
+      "r_big_flops",
+      "s_wmt_comparison",
+      "s_size_scope"
+    ],
+    "ablation_proposition_ids": [
+      "m_two_way_ablation",
+      "s_ablation_control",
+      "a_no_single_mutation",
+      "a_decoder_block_limit"
+    ]
+  }
+}
