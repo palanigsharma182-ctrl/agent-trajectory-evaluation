@@ -22,12 +22,23 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True, help="全新的输出目录")
     parser.add_argument("--model", choices=("mock", "exchange"), default="mock")
     parser.add_argument("--retrieval", choices=("paragraph", "unit", "dependency"), default="paragraph")
+    parser.add_argument("--mask-paragraph", help="重放时屏蔽该段落的首次内容曝光")
     parser.add_argument("--no-frontier", action="store_true")
     parser.add_argument("--max-tool-calls", type=int, default=7)
     parser.add_argument("--exchange-timeout", type=float, default=300)
     args = parser.parse_args()
 
-    fixture = Fixture.model_validate_json(args.fixture.read_text(encoding="utf-8"))
+    data = json.loads(args.fixture.read_text(encoding="utf-8"))
+    if args.model == "exchange":
+        data.pop("demo", None)
+        data["task"].pop("result_requirement", None)
+        data["task"].pop("attribution_requirement", None)
+    fixture = Fixture.model_validate(data)
+    if args.model == "mock" and fixture.demo is None:
+        parser.error("Mock 运行需要带 demo 的 fixture")
+    intervention_target = args.mask_paragraph
+    if args.model == "mock" and intervention_target is None:
+        intervention_target = fixture.demo.ablation_paragraph_id
     offline = OfflineReview.model_validate_json(args.offline_review.read_text(encoding="utf-8"))
     config = RunConfig(retrieval=args.retrieval, frontier=not args.no_frontier, max_tool_calls=args.max_tool_calls)
     out = args.output.resolve()
@@ -59,12 +70,13 @@ def main() -> None:
                               "termination_reason": run["termination_reason"]}, ensure_ascii=False), flush=True)
 
         runtime = ResearchRuntime(fixture, store, snapshot_id, config, clients)
-        report = runtime.run_experiment(out / "checkpoints.db", save_run)
+        report = runtime.run_experiment(out / "checkpoints.db", save_run, intervention_target=intervention_target)
         report["model"] = clients["original"].name
         report["knowledge"] = offline_data
         write_json(out / "experiment.json", report)
         (out / "report.html").write_text(render_report(report), encoding="utf-8")
-        print(json.dumps({"event": "experiment_completed", "prefix_equal": report["intervention"]["prefix_equal"],
+        print(json.dumps({"event": "experiment_completed", "prefix_equal": report["intervention"].get("prefix_equal"),
+                          "intervention_status": report["intervention"]["status"],
                           "report": str(out / "report.html")}, ensure_ascii=False), flush=True)
     finally:
         store.engine.dispose()

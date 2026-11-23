@@ -21,7 +21,7 @@ python3 -m venv .venv
 ## GPT-6.2-sol 子 Agent 运行
 
 ```bash
-.venv/bin/python -m research_agent.cli --model exchange --output runs/sol-demo
+.venv/bin/python -m research_agent.cli --model exchange --mask-paragraph s11p5 --output runs/sol-demo
 ```
 
 `--model exchange` 通过本地文件交接模型调用。运行时按顺序在 `exchange/slot-1`、`slot-2`、`slot-3` 写出 `request-NNN.json`。分别交给独立子 Agent，只提供该槽的请求文件。子 Agent 根据其中的原始工具消息与工具契约写同编号 `response-NNN.json`，用临时文件加同目录原子重命名提交。
@@ -31,11 +31,12 @@ python3 -m venv .venv
   "name": "search",
   "arguments": {"query": "machine translation ablation validation perplexity"},
   "action_reason": "寻找支撑归因判断的实验对照。",
-  "source_ids": []
+  "source_ids": [],
+  "requirements": [{"id": "mutation-effect", "question": "Which individual mutations can the experiments attribute gains to?"}]
 }
 ```
 
-这条路径通过 LangChain 工具与消息对象执行模型所选动作。模型响应由 Codex 子 Agent 提交。`estimated_tokens` 是本地对消息和动作的统一估算，子 Agent 的整个会话用量不在该数字里。
+首次动作必须从用户问题生成 `requirements`。后续可通过 `claim_assessments` 更新某项要求的结论、支持状态、判断理由和已读段落的逐字引文。请求附带完整的 `response_schema`。省略 `--mask-paragraph` 时只运行原始问答。`estimated_tokens` 是本地对消息和动作的统一估算，子 Agent 的整个会话用量不在该数字里。
 
 ## 数据流
 
@@ -52,12 +53,12 @@ flowchart LR
   Update --> Report["状态变化、JSONL Trace 和本地 HTML"]
 ```
 
-- `fixtures/qasper_offline_review.json` 是 GPT-6.2-sol 对 8 条预抽取候选的独立语义核验。核验使用论文原文与命题候选，应用保存模型的判断范围和证据段落。命题候选的来源与验证见 `fixtures/SOURCE.md`。
-- `store.py` 负责 Alembic 迁移、快照和索引。运行时可选同一个入口下的 `--retrieval paragraph|unit|dependency`，依赖模式按类型化边扩展一跳。原始问答实验用段落模式，让消融全文只在 `read` 时交付。
-- `runtime.py` 将动作选择、工具执行和观测交付拆成单独的 LangGraph 节点。重放检查消息、工作图、已交付观测、动作、预算和事件前缀的一致性。对照沿用工具原响应，干预从同一批原文中屏蔽 `s11p5`，其他同批段落保持原样。
-- `working.py` 只用当前分支已读到的锚点更新证据图。作者陈述、可复用的离线核验和本次回答要求各有记录。沿控制组和干预组依赖边的并集追查受影响项。图状态衡量演示定义的来源覆盖，最终回答质量需另行核对原文与完整性。
+- `fixtures/qasper_offline_review.json` 保存 GPT-6.2-sol 对 8 条预抽取候选的语义核验，以及判断范围、证据段落与命题内容哈希。同一核验者、同一范围的新版本会替换旧判断。独立核验同时存在支持和反驳时，工作图记录 `CONFLICTED` 及各自来源。
+- `store.py` 负责 Alembic 迁移、快照和索引。快照使用各自的 FTS5 索引和 BM25 统计。迁移保留旧核验记录，缺少版本绑定的记录需要重新核验才能参与图状态计算。检索模式仍为 `--retrieval paragraph|unit|dependency`。
+- `runtime.py` 记录内容首次进入模型上下文的时间和来源（`InformationExposure`）。段落模式在读取原文时暴露内容，Unit 和 Dependency 模式也可能在搜索阶段暴露命题及引文。两条重放从首次暴露前的同一检查点恢复。干预修改一次工具观测，同批其他证据保留，后续允许正常补查。无合法分叉点时记录 `INTERVENTION_NOT_APPLICABLE` 并保留原始轨迹和报告。
+- `working.py` 将已获取的相关证据（Evidence Coverage）和证据对具体结论的语义支持（Claim Support）作为独立状态。运行报告的 Answer Correctness 保持 `NOT_EVALUATED`，由独立 Evaluation 判分。预设命题 ID 和答案只供 Mock 使用。
 
-每次运行生成两份 SQLite、`knowledge_snapshot.json`、三份分支 JSON 和 JSONL、`experiment.json` 与 `report.html`。项目测试验证 FTS 检索、幂等发布、事务回滚、检查点前缀、同批非目标证据保存、替代锚点与归因状态变化。当前范围是一篇论文的一条演示题。
+每次运行生成两份 SQLite、`knowledge_snapshot.json`、实际执行的各分支 JSON 和 JSONL、`experiment.json` 与 `report.html`。当前演示范围是一篇论文。
 
 ## 首次真实模型运行结果
 

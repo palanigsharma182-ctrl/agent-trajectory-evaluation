@@ -13,7 +13,7 @@ ARGUMENTS = {"search": Search, "read": Read, "finish": Finish}
 TOOL_SCHEMAS = [
     {"name": name, "description": description, "parameters": ARGUMENTS[name].model_json_schema()}
     for name, description in (
-        ("search", "Search the assigned paper. Search hits identify passages; use read to see the original text."),
+        ("search", "Search the assigned paper. Hits can include propositions and excerpts. Use read for full passages."),
         ("read", "Read the original text of up to three passage IDs returned by search."),
         ("finish", "Answer the question and list the passage IDs you actually used. Explicitly qualify unsupported parts."),
     )
@@ -27,6 +27,7 @@ def model_tokens(messages: list[dict]) -> int:
 
 class ModelClient(Protocol):
     name: str
+    uses_mock_fixture: bool
 
     def choose(self, messages: list[dict], step: int) -> ModelAction: ...
 
@@ -39,6 +40,7 @@ def as_ai_message(action: ModelAction, step: int) -> AIMessage:
 
 class MockClient:
     name = "mock"
+    uses_mock_fixture = True
 
     def __init__(self, demo: Demo):
         self.demo = demo
@@ -75,6 +77,7 @@ class ExchangeClient:
     """由指定的 Codex 子 Agent 响应本地结构化的模型请求。"""
 
     name = "gpt-6.2-sol"
+    uses_mock_fixture = False
 
     def __init__(self, directory: Path, timeout: float = 240):
         self.directory = directory
@@ -85,7 +88,8 @@ class ExchangeClient:
         request = self.directory / f"request-{step:03d}.json"
         response = self.directory / f"response-{step:03d}.json"
         temporary = request.with_suffix(".tmp")
-        temporary.write_text(json.dumps({"step": step, "messages": messages, "tools": TOOL_SCHEMAS},
+        temporary.write_text(json.dumps({"step": step, "messages": messages, "tools": TOOL_SCHEMAS,
+                                         "response_schema": ModelAction.model_json_schema()},
                                         ensure_ascii=False, indent=2), encoding="utf-8")
         temporary.replace(request)
         deadline = time.monotonic() + self.timeout

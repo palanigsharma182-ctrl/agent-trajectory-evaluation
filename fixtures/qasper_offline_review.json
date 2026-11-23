@@ -15,7 +15,10 @@
       "reason": "The authors report a 0.7 BLEU advantage for Evolved Transformer over Transformer at the smallest tested size, approximately 7 million parameters. The preceding paragraph identifies the comparison as WMT 2014 English–German under the Tensor2Tensor regime.",
       "scope": "Author-reported BLEU difference at the smallest model size in the WMT 2014 English–German scaling comparison.",
       "assessor": "gpt-6.2-sol",
-      "revision": 1
+      "revision": 1,
+      "proposition_hashes": {
+        "r_mobile_bleu": "0e5c88001f2cd3f1bde9daf3e4dae63c7ea244cb028fd13d8bc6d1059f5b0faa"
+      }
     },
     {
       "id": "offline:r_big_flops",
@@ -31,7 +34,10 @@
       "reason": "The authors report that one Evolved Transformer model exceeded the big Transformer in the BLEU-versus-FLOPS comparison while using 44.8% fewer FLOPS. The preceding paragraph identifies the evaluation regime and the baseline.",
       "scope": "Author-reported WMT 2014 English–German comparison against the big Transformer baseline. The percentage refers to FLOPS.",
       "assessor": "gpt-6.2-sol",
-      "revision": 1
+      "revision": 1,
+      "proposition_hashes": {
+        "r_big_flops": "a6e4aa4d88defe9c4b13fc4d4af2521a71534caedbd38da6b428e0aa4400fa91"
+      }
     },
     {
       "id": "offline:s_wmt_comparison",
@@ -48,7 +54,10 @@
       "reason": "The main comparison paragraph explicitly identifies the Tensor2Tensor WMT 2014 English–German regime and eight NVIDIA P100 GPUs. The generalizability comparison uses 16 TPU V2 chips, and the ablations use one TPU V2 chip per training run.",
       "scope": "Table 2 and the associated WMT 2014 English–German model-size comparison. The later evaluation and ablation protocols have their own hardware settings.",
       "assessor": "gpt-6.2-sol",
-      "revision": 1
+      "revision": 1,
+      "proposition_hashes": {
+        "s_wmt_comparison": "2a9f04b4947dcd4304563e38430465f35f656e4bf51dc885dcb4c8c1cc52bd0f"
+      }
     },
     {
       "id": "offline:s_size_scope",
@@ -64,7 +73,10 @@
       "reason": "The authors observe that BLEU saturates at large model sizes and that the gap becomes smaller, with the largest reported difference at the smallest tested size. They also report that perplexity gains remain significant for big models.",
       "scope": "Qualitative BLEU trend across the sizes discussed in Tables 2 and 3. The text establishes a smaller gap at large sizes without giving a strictly decreasing sequence at every adjacent size.",
       "assessor": "gpt-6.2-sol",
-      "revision": 1
+      "revision": 1,
+      "proposition_hashes": {
+        "s_size_scope": "0334f63714e3c0f06458ae3438e1b9f439bc0e2c0630a7b5132bb443d6b5c86c"
+      }
     },
     {
       "id": "offline:m_two_way_ablation",
@@ -80,7 +92,10 @@
       "reason": "Both the main text and appendix specify two ablation rounds: add one mutation at a time to the original Transformer, and remove one mutation at a time from Evolved Transformer. This design is the direct basis for the subsequent comparisons of augmented models.",
       "scope": "Individual mutation changes investigated on the two architecture baselines, using validation perplexity as fitness.",
       "assessor": "gpt-6.2-sol",
-      "revision": 1
+      "revision": 1,
+      "proposition_hashes": {
+        "m_two_way_ablation": "3f4f8b138cb1672394bebab3891f1940ebb59511c7c1ec2aea8e368ab7a61993"
+      }
     },
     {
       "id": "offline:s_ablation_control",
@@ -97,7 +112,10 @@
       "reason": "The main text and appendix specify three trainings per model for 300,000 steps on WMT English–German in both ablation rounds, with identical hyperparameters and inverse-square-root decay to zero. Each training used one TPU V2 chip. The eight-P100 setup belongs to the separate scaling comparison.",
       "scope": "Both rounds of the author-reported WMT English–German mutation ablations. Validation perplexity was the comparison metric.",
       "assessor": "gpt-6.2-sol",
-      "revision": 1
+      "revision": 1,
+      "proposition_hashes": {
+        "s_ablation_control": "c0ebf9f57693b3c0665c9370ffeeebbc06b4201a8e44e980d7c45c2ba2639d0d"
+      }
     },
     {
       "id": "offline:a_no_single_mutation",
@@ -114,7 +132,10 @@
       "reason": "The authors report that every augmented Evolved Transformer tested still outperformed its augmented Transformer counterpart. The two-way one-mutation design uses validation perplexity. The appendix qualifies that mutation effects can depend on the architecture and interactions with other fields.",
       "scope": "Author interpretation of the tested one-mutation pairs under the ablation setup. The analysis leaves joint mutation effects and interactions unresolved.",
       "assessor": "gpt-6.2-sol",
-      "revision": 1
+      "revision": 1,
+      "proposition_hashes": {
+        "a_no_single_mutation": "9c52f19aef5cdef091459fc6bb035d381f0969f3fd44a4778fc0dbcbeaa71f2d"
+      }
     },
     {
       "id": "offline:a_decoder_block_limit",
@@ -131,7 +152,10 @@
       "reason": "The authors identify the increase from three to four decoder blocks as seemingly the strongest individual mutation. After adding it to the Transformer and removing it from Evolved Transformer, the augmented Evolved Transformer still has higher validation-perplexity fitness. The paper also reports that adding the block gives the Transformer 69.6 million parameters, outside the search's allowed range.",
       "scope": "Author interpretation from one-mutation WMT English–German ablations, with validation perplexity as fitness. The stated parameter constraint applies to the architecture search.",
       "assessor": "gpt-6.2-sol",
-      "revision": 1
+      "revision": 1,
+      "proposition_hashes": {
+        "a_decoder_block_limit": "292e0caf15b9142db03bb703e9232b5c0f3e6e2e2ccefd40bf4f0514b8555c13"
+      }
     }
   ]
 }

@@ -27,6 +27,13 @@ def _unique_ids(items: list[object], label: str) -> set[str]:
     return set(ids)
 
 
+def _fts_table(kind: Literal["paragraph", "proposition"], snapshot_id: str) -> str:
+    # The snapshot ID is a content digest, not an arbitrary SQL identifier.
+    if re.fullmatch(r"[0-9a-f]{24}", snapshot_id) is None:
+        raise ValueError("invalid snapshot ID")
+    return f"{kind}_fts_{snapshot_id}"
+
+
 class KnowledgeStore:
     """Publish and query immutable snapshots of one paper at a time."""
 
@@ -53,6 +60,7 @@ class KnowledgeStore:
             raise ValueError("paper id, source_url and source_split are required")
         paragraph_ids = _unique_ids(paper.paragraphs, "paragraph")
         proposition_ids = _unique_ids(fixture.propositions, "proposition")
+        propositions = {item.id: item for item in fixture.propositions}
         _unique_ids(assessments, "assessment")
         paragraphs = {paragraph.id: paragraph for paragraph in paper.paragraphs}
 
@@ -70,10 +78,18 @@ class KnowledgeStore:
                     raise ValueError(f"experiment refers to unknown proposition {identifier}")
         valid_sources = paragraph_ids
         for assessment in assessments:
+            if assessment.claim_id not in proposition_ids:
+                raise ValueError(f"assessment {assessment.id} refers to an unknown claim")
             if any(identifier not in proposition_ids for identifier in assessment.proposition_ids):
                 raise ValueError(f"assessment {assessment.id} refers to an unknown proposition")
             if any(identifier not in valid_sources for identifier in assessment.source_ids):
                 raise ValueError(f"assessment {assessment.id} refers to an unknown source")
+            referenced = set(assessment.proposition_ids) | {assessment.claim_id}
+            if set(assessment.proposition_hashes) != referenced or any(
+                assessment.proposition_hashes[identifier] != propositions[identifier].content_hash()
+                for identifier in referenced
+            ):
+                raise ValueError(f"assessment {assessment.id} has missing or stale proposition hashes")
 
     @staticmethod
     def _payload(fixture: Fixture, assessments: list[Assessment]) -> dict:
@@ -108,6 +124,14 @@ class KnowledgeStore:
                 if existing != digest:
                     raise ValueError("snapshot ID collision")
                 return snapshot_id
+            connection.exec_driver_sql(
+                f"CREATE VIRTUAL TABLE {_fts_table('paragraph', snapshot_id)} "
+                "USING fts5(paragraph_id UNINDEXED, text, section, tokenize='unicode61')"
+            )
+            connection.exec_driver_sql(
+                f"CREATE VIRTUAL TABLE {_fts_table('proposition', snapshot_id)} "
+                "USING fts5(proposition_id UNINDEXED, paragraph_id UNINDEXED, statement, quote, tokenize='unicode61')"
+            )
             self._insert_paragraphs(connection, snapshot_id, fixture)
             self._insert_propositions(connection, snapshot_id, fixture)
             for relation in fixture.relations:
@@ -123,10 +147,10 @@ class KnowledgeStore:
                 )
             for assessment in assessments:
                 connection.exec_driver_sql(
-                    "INSERT INTO assessments (snapshot_id, id, claim_id, status, proposition_ids, source_ids, reason, scope, assessor, revision) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO assessments (snapshot_id, id, claim_id, status, proposition_ids, proposition_hashes, source_ids, reason, scope, assessor, revision) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (snapshot_id, assessment.id, assessment.claim_id, assessment.status,
-                     _json(assessment.proposition_ids), _json(assessment.source_ids), assessment.reason,
+                     _json(assessment.proposition_ids), _json(assessment.proposition_hashes), _json(assessment.source_ids), assessment.reason,
                      assessment.scope, assessment.assessor, assessment.revision),
                 )
         return snapshot_id
@@ -139,8 +163,8 @@ class KnowledgeStore:
                 (snapshot_id, paragraph.id, paragraph.section, paragraph.text),
             )
             connection.exec_driver_sql(
-                "INSERT INTO paragraph_fts (snapshot_id, paper_id, paragraph_id, text, section) VALUES (?, ?, ?, ?, ?)",
-                (snapshot_id, fixture.paper.id, paragraph.id, paragraph.text, paragraph.section),
+                f"INSERT INTO {_fts_table('paragraph', snapshot_id)} (paragraph_id, text, section) VALUES (?, ?, ?)",
+                (paragraph.id, paragraph.text, paragraph.section),
             )
 
     @staticmethod
@@ -151,8 +175,8 @@ class KnowledgeStore:
                 (snapshot_id, proposition.id, proposition.kind, proposition.statement, proposition.paragraph_id, proposition.quote),
             )
             connection.exec_driver_sql(
-                "INSERT INTO proposition_fts (snapshot_id, paper_id, proposition_id, paragraph_id, statement, quote) VALUES (?, ?, ?, ?, ?, ?)",
-                (snapshot_id, fixture.paper.id, proposition.id, proposition.paragraph_id, proposition.statement, proposition.quote),
+                f"INSERT INTO {_fts_table('proposition', snapshot_id)} (proposition_id, paragraph_id, statement, quote) VALUES (?, ?, ?, ?)",
+                (proposition.id, proposition.paragraph_id, proposition.statement, proposition.quote),
             )
 
     def get_paragraph(self, snapshot_id: str, paragraph_id: str) -> Paragraph:
@@ -175,6 +199,14 @@ class KnowledgeStore:
             raise KeyError((snapshot_id, proposition_id))
         return Proposition.model_validate(dict(row))
 
+    def get_propositions(self, snapshot_id: str) -> list[Proposition]:
+        with self.engine.connect() as connection:
+            rows = connection.exec_driver_sql(
+                "SELECT id, kind, statement, paragraph_id, quote FROM propositions WHERE snapshot_id = ? ORDER BY id",
+                (snapshot_id,),
+            ).mappings().all()
+        return [Proposition.model_validate(dict(row)) for row in rows]
+
     def search(self, snapshot_id: str, query: str, mode: Literal["paragraph", "proposition"], limit: int = 5) -> list[dict]:
         if mode not in ("paragraph", "proposition"):
             raise ValueError("mode must be paragraph or proposition")
@@ -185,15 +217,18 @@ class KnowledgeStore:
         if not words:
             return []
         expression = " OR ".join('"' + word.replace('"', '""') + '"' for word in words)
-        table = "paragraph_fts" if mode == "paragraph" else "proposition_fts"
+        if re.fullmatch(r"[0-9a-f]{24}", snapshot_id) is None:
+            return []
+        table = _fts_table(mode, snapshot_id)
         id_column = "paragraph_id" if mode == "paragraph" else "proposition_id"
         with self.engine.connect() as connection:
+            if connection.exec_driver_sql("SELECT 1 FROM snapshots WHERE id = ?", (snapshot_id,)).first() is None:
+                return []
             rows = connection.exec_driver_sql(
                 f"SELECT {id_column} AS id, paragraph_id, -bm25({table}) AS score "
-                f"FROM {table} WHERE {table} MATCH ? AND snapshot_id = ? "
-                "AND paper_id = (SELECT paper_id FROM snapshots WHERE id = ?) "
+                f"FROM {table} WHERE {table} MATCH ? "
                 f"ORDER BY bm25({table}), id LIMIT ?",
-                (expression, snapshot_id, snapshot_id, limit),
+                (expression, limit),
             ).mappings().all()
         return [{"id": row["id"], "score": float(row["score"]), "paragraph_id": row["paragraph_id"]} for row in rows]
 
@@ -208,12 +243,23 @@ class KnowledgeStore:
     def get_assessments(self, snapshot_id: str) -> list[Assessment]:
         with self.engine.connect() as connection:
             rows = connection.exec_driver_sql(
-                "SELECT id, claim_id, status, proposition_ids, source_ids, reason, scope, assessor, revision "
+                "SELECT id, claim_id, status, proposition_ids, proposition_hashes, source_ids, reason, scope, assessor, revision "
                 "FROM assessments WHERE snapshot_id = ? ORDER BY id",
                 (snapshot_id,),
             ).mappings().all()
-        return [Assessment.model_validate({**dict(row), "proposition_ids": json.loads(row["proposition_ids"]),
-                                           "source_ids": json.loads(row["source_ids"])}) for row in rows]
+        hashes = {item.id: item.content_hash() for item in self.get_propositions(snapshot_id)}
+        bound: list[Assessment] = []
+        for row in rows:
+            assessment = Assessment.model_validate({**dict(row),
+                "proposition_ids": json.loads(row["proposition_ids"]),
+                "proposition_hashes": json.loads(row["proposition_hashes"]),
+                "source_ids": json.loads(row["source_ids"])})
+            referenced = set(assessment.proposition_ids) | {assessment.claim_id}
+            if set(assessment.proposition_hashes) == referenced and all(
+                assessment.proposition_hashes[identifier] == hashes.get(identifier) for identifier in referenced
+            ):
+                bound.append(assessment)
+        return bound
 
     def record_run(self, snapshot_id: str, report: dict) -> None:
         """Store one completed branch report against an existing snapshot."""
